@@ -4,25 +4,27 @@ class Mood {
     /**
      * Guarda un registro de humor con su reflexión e insight de IA
      */
-    static async log(userId, moodScore, note, aiInsight, tags = []) {
+    static async log(userId, moodScore, note, aiInsight, tags = [], title = '', emotionalLoad = 'violet') {
         const query = `
-            INSERT INTO mood_logs (user_id, mood_score, note, ai_insight, tags)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING *
+            INSERT INTO mood_logs (user_id, mood_score, note, ai_insight, tags, title, emotional_load)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *, note as content
         `;
         const { rows } = await db.query(query, [
             userId, 
             moodScore, 
             note, 
             aiInsight, 
-            JSON.stringify(tags)
+            JSON.stringify(tags),
+            title,
+            emotionalLoad
         ]);
         return rows[0];
     }
 
     static async getUserHistory(userId) {
         const query = `
-            SELECT * FROM mood_logs 
+            SELECT *, note as content FROM mood_logs 
             WHERE user_id = $1 
             ORDER BY created_at DESC 
             LIMIT 100

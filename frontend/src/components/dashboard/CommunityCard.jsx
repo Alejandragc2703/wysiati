@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Radio, UserCheck, UserMinus } from 'lucide-react';
+import { Heart, UserCheck, UserMinus } from 'lucide-react';
+import api from '../../services/api';
 
-const CommunityCard = () => {
-  const [isActive, setIsActive] = useState(true);
+const CommunityCard = ({ isActive = false, onStatusChange, userCount = 0 }) => {
+  
+  const toggleStatus = async () => {
+    try {
+      await api.updateStatus(!isActive);
+      if (onStatusChange) onStatusChange();
+    } catch (error) {
+      console.error("Error al cambiar estado de comunidad:", error);
+    }
+  };
 
   return (
     <motion.div 
-      className="bg-violet-900/10 border border-violet-500/10 p-10 rounded-[3rem]
-                 flex flex-col justify-between relative overflow-hidden group h-full"
+      className={`bg-violet-900/10 border border-violet-500/10 p-10 rounded-[3rem]
+                 flex flex-col justify-between relative overflow-hidden group h-full transition-all duration-500 ${!isActive && 'grayscale opacity-60'}`}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent opacity-50" />
       
@@ -26,7 +35,7 @@ const CommunityCard = () => {
         
         {/* Toggle Active Status */}
         <button 
-          onClick={() => setIsActive(!isActive)}
+          onClick={toggleStatus}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all text-[8px] font-black uppercase tracking-widest ${
             isActive ? 'bg-violet-neon/20 border-violet-neon/30 text-violet-neon' : 'bg-white/5 border-white/10 text-gray-500'
           }`}
@@ -38,9 +47,9 @@ const CommunityCard = () => {
 
       <div className="relative z-10">
         <p className="text-3xl font-black text-white tracking-tighter italic uppercase leading-none">
-          {isActive ? '204' : '---'}
+          {isActive ? userCount : '---'}
         </p>
-        <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.3em] mt-1">Personas Contigo</p>
+        <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.3em] mt-1">Santuarios Sincronizados</p>
       </div>
     </motion.div>
   );

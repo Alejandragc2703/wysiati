@@ -23,7 +23,7 @@ const ResetPassword = () => {
         // Simulación de éxito por ahora
         setTimeout(() => {
             setStatus('success');
-            setTimeout(() => navigate('/login'), 3000);
+            setTimeout(() => navigate('/'), 3000);
         }, 2000);
     };
 

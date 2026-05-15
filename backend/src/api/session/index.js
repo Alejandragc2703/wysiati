@@ -2,12 +2,19 @@ const express = require('express');
 const router = express.Router();
 const authGuard = require('../../middleware/authGuard');
 const db = require('../../db/client');
+const cognitiveProcessor = require('../../ia/processors/cognitiveProcessor');
 
-// Guardar el resultado de una sesión de IA (Voz o Video)
+// Guardar el resultado de una sesión de IA (Voz o Video) + ANÁLISIS COGNITIVO
 router.post('/log', authGuard, async (req, res) => {
     try {
         const { session_type, transcript, biometrics, ai_summary } = req.body;
         const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+
+        // Si hay transcripción, analizamos el pensamiento detrás de las palabras
+        let cognitiveAnalysis = null;
+        if (transcript) {
+            cognitiveAnalysis = await cognitiveProcessor.analyze(transcript);
+        }
 
         const query = `
             INSERT INTO ai_sessions (user_id, session_type, transcript, biometrics, ai_summary)
@@ -20,13 +27,14 @@ router.post('/log', authGuard, async (req, res) => {
             session_type, 
             transcript, 
             JSON.stringify(biometrics), 
-            ai_summary
+            cognitiveAnalysis ? cognitiveAnalysis.aiInsight : ai_summary
         ]);
 
         res.json({
             success: true,
             session: rows[0],
-            message: 'Sesión Bio-Sync guardada en el historial'
+            analysis: cognitiveAnalysis,
+            message: 'Sesión Bio-Sync guardada con análisis cognitivo'
         });
     } catch (error) {
         console.error(error);

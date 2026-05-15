@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, Info, Activity, Laugh, Smile, Meh, Frown } from 'lucide-react';
 
 import YearlyCalendar from '../../components/dashboard/YearlyCalendar';
+import api from '../../services/api';
 
 const card = {
   hidden: { opacity: 0, x: -20 },
@@ -13,31 +14,71 @@ const card = {
 };
 
 const MoodHistory = () => {
+  const [entries, setEntries] = React.useState([]);
+  const [yearlyStats, setYearlyStats] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    Promise.all([
+      api.getJournalEntries(),
+      api.getYearlyStats()
+    ]).then(([journalData, statsData]) => {
+      setEntries(journalData);
+      setYearlyStats(statsData);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  }, []);
+
   const moods = [
-    { key: 'genial', label: 'Genial',  color: '#C1E1C1', textColor: '#2D5A27', icon: Laugh },
-    { key: 'bien',   label: 'Bien',    color: '#DFFFD6', textColor: '#3E6B34', icon: Smile },
-    { key: 'meh',    label: 'Meh',     color: '#FFF9C4', textColor: '#6D6027', icon: Meh   },
-    { key: 'mal',    label: 'Mal',     color: '#FFE0B2', textColor: '#8D512E', icon: Frown },
-    { key: 'fatal',  label: 'Fatal',   color: '#CFD8DC', textColor: '#455A64', icon: Frown },
+    { key: 5, label: 'Genial',  color: '#C1E1C1', textColor: '#2D5A27', icon: Laugh },
+    { key: 4, label: 'Bien',    color: '#DFFFD6', textColor: '#3E6B34', icon: Smile },
+    { key: 3, label: 'Meh',     color: '#FFF9C4', textColor: '#6D6027', icon: Meh   },
+    { key: 2, label: 'Mal',     color: '#FFE0B2', textColor: '#8D512E', icon: Frown },
+    { key: 1, label: 'Fatal',   color: '#CFD8DC', textColor: '#455A64', icon: Frown },
   ];
 
   const moodColors = Object.fromEntries([
     ...moods.map(m => [m.key, m.color]),
-    ['none', '#1a1d23']
+    [-1, '#1a1d23']
   ]);
 
-  const yearlyData = useMemo(() => {
-    const keys = ['genial', 'bien', 'meh', 'none', 'none'];
-    return Array.from({ length: 364 }, () => keys[Math.floor(Math.random() * keys.length)]);
-  }, []);
+  const monthName = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
 
-  const monthDays = useMemo(() => {
-    const keys = ['genial', 'bien', 'meh', 'none'];
-    return Array.from({ length: 31 }, (_, i) => ({
-      day: i + 1,
-      mood: keys[Math.floor(Math.random() * keys.length)]
-    }));
-  }, []);
+  // Agrupar entradas por día del mes actual, alineando con el día de la semana
+  const calendarDays = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    // JS getDay(): 0 = Domingo. Ajustamos para que Lunes = 0, Domingo = 6
+    let firstDayOfWeek = new Date(year, month, 1).getDay();
+    firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    const days = [];
+    // Huecos vacíos para los días antes del 1 del mes
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      days.push({ empty: true, key: `empty-${i}` });
+    }
+    
+    for (let i = 1; i <= daysInMonth; i++) {
+      const entry = entries.find(e => {
+        const d = new Date(e.created_at);
+        return d.getDate() === i && d.getMonth() === month && d.getFullYear() === year;
+      });
+      days.push({
+        empty: false,
+        key: `day-${i}`,
+        day: i,
+        mood: entry ? entry.mood_score : -1
+      });
+    }
+    return days;
+  }, [entries]);
 
   return (
     <div className="space-y-12 pb-32">
@@ -67,7 +108,7 @@ const MoodHistory = () => {
         <motion.div variants={card} custom={0} initial="hidden" animate="visible" className="lg:col-span-8 bg-white/[0.02] border border-white/5 p-10 rounded-[3.5rem] shadow-xl">
           <div className="flex justify-between items-center mb-10">
             <h3 className="text-lg font-black text-white italic uppercase tracking-tight flex items-center gap-3">
-              <CalendarIcon className="text-violet-neon" size={20} /> Mayo 2026
+              <CalendarIcon className="text-violet-neon" size={20} /> {monthName}
             </h3>
           </div>
 
@@ -75,14 +116,18 @@ const MoodHistory = () => {
             {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d => (
               <div key={d} className="text-center text-[9px] font-black text-gray-600 uppercase tracking-widest mb-3">{d}</div>
             ))}
-            {monthDays.map((day, i) => (
-              <motion.div
-                key={i}
-                className="aspect-square rounded-2xl flex items-center justify-center relative cursor-pointer group"
-                style={{ backgroundColor: moodColors[day.mood] }}
-              >
-                <span className={`text-xs font-black ${day.mood === 'none' ? 'text-gray-700' : 'text-black/50'}`}>{day.day}</span>
-              </motion.div>
+            {calendarDays.map((cell) => (
+              cell.empty ? (
+                <div key={cell.key} className="aspect-square bg-transparent" />
+              ) : (
+                <motion.div
+                  key={cell.key}
+                  className="aspect-square rounded-2xl flex items-center justify-center relative cursor-pointer group"
+                  style={{ backgroundColor: moodColors[cell.mood] }}
+                >
+                  <span className={`text-xs font-black ${cell.mood === -1 ? 'text-gray-700' : 'text-black/50'}`}>{cell.day}</span>
+                </motion.div>
+              )
             ))}
           </div>
         </motion.div>

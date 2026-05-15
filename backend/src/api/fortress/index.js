@@ -3,25 +3,52 @@ const router = express.Router();
 const authGuard = require('../../middleware/authGuard');
 const { Habit } = require('../../db');
 
-// Hacer el Check-in diario (actualizar racha)
+// Obtener estado de la fortaleza
+router.get('/status', authGuard, async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const habitData = await Habit.getByUserId(userId);
+        res.json(habitData);
+    } catch (error) {
+        console.error("🔥 Error en status fortaleza:", error);
+        res.status(500).json({ error: 'Error al obtener estado de Fortaleza' });
+    }
+});
+
+// Desbloquear fortaleza (Onboarding)
+router.post('/unlock', authGuard, async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { selectedHabits } = req.body;
+        if (!selectedHabits || selectedHabits.length === 0) {
+            return res.status(400).json({ error: 'Debes seleccionar al menos un hábito' });
+        }
+
+        const updatedHabit = await Habit.unlock(userId, selectedHabits);
+        res.json(updatedHabit);
+    } catch (error) {
+        console.error("🔥 Error en unlock fortaleza:", error);
+        res.status(500).json({ error: 'Error al desbloquear Fortaleza' });
+    }
+});
+
+// Hacer el Check-in diario
 router.post('/check-in', authGuard, async (req, res) => {
     try {
-        const userId = req.user?.id || 'default_user';
-        
-        // 1. Obtener racha actual
-        let habitData = await Habit.getByUserId(userId);
-        let newStreak = habitData ? habitData.current_streak + 1 : 1;
-
-        // 2. Actualizar en DB
-        const updatedHabit = await Habit.updateStreak(userId, newStreak);
+        const userId = req.user?.id;
+        const updatedHabit = await Habit.checkIn(userId);
 
         res.json({ 
             success: true, 
             newStreak: updatedHabit.current_streak, 
-            message: 'Sober Tracker sincronizado: Racha aumentada.' 
+            message: '¡Fortaleza confirmada!' 
         });
     } catch (error) {
-        res.status(500).json({ error: 'Error al procesar el check-in de Fortaleza' });
+        console.error("🔥 Error en check-in fortaleza:", error);
+        const msg = error.message === 'Ya has registrado tu fortaleza hoy' 
+            ? error.message 
+            : 'Error al procesar el check-in';
+        res.status(400).json({ error: msg });
     }
 });
 

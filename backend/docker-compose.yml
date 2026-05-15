@@ -25,7 +25,7 @@ services:
       - "3000:3000"
     environment:
       - DB_USER=blueb
-      - DB_PASSWORD=mypassword
+      - DB_PASS=mypassword
       - DB_HOST=db
       - DB_NAME=wysiati
       - DB_PORT=5432
@@ -34,8 +34,11 @@ services:
       - EMAIL_PORT=${EMAIL_PORT}
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_PASS=${EMAIL_PASS}
+      - AI_API_KEY=${AI_API_KEY}
     depends_on:
       - db
+    volumes:
+      - ./src/uploads:/app/src/uploads
 
   # 🎨 SANTUARIO (FRONTEND)
   frontend:

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SoberTracker from '../../components/dashboard/SoberTracker';
 import ComprehensiveJournal from '../../components/dashboard/ComprehensiveJournal';
 import MoodSelectorDaylio from '../../components/dashboard/MoodSelectorDaylio';
@@ -19,6 +19,8 @@ const card = {
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const [refreshKey, setRefreshKey] = useState(0);
   const [data, setData] = useState({
     nickname: localStorage.getItem('wysiati_nickname') || 'Viajero',
     streak: 1,
@@ -26,12 +28,21 @@ const Dashboard = () => {
     moodTrend: 'Estable',
     personality: 'Arquitecto de Hábitos'
   });
+  const [dailyFact, setDailyFact] = useState(null);
+  const [factLoading, setFactLoading] = useState(true);
 
-  useEffect(() => {
-    // Carga de datos reales desde el backend
+  const loadDashboardData = () => {
     api.getDashboardStats()
       .then(res => setData(res))
       .catch(err => console.warn("Backend no detectado, usando datos locales.", err));
+    setRefreshKey(prev => prev + 1);
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+    api.getDailyFact()
+      .then(fact => { setDailyFact(fact); setFactLoading(false); })
+      .catch(() => setFactLoading(false));
   }, []);
 
   const staticData = {
@@ -98,7 +109,10 @@ const Dashboard = () => {
 
         {/* Mood Tracker */}
         <motion.div variants={card} custom={0} initial="hidden" animate="visible" className="lg:col-span-12">
-          <MoodSelectorDaylio />
+          <MoodSelectorDaylio 
+            onSuccess={loadDashboardData} 
+            hasRegistered={data.hasMoodToday}
+          />
         </motion.div>
 
         {/* Heart Coherence */}
@@ -108,25 +122,35 @@ const Dashboard = () => {
 
         <div className="lg:col-span-4 grid grid-rows-2 gap-8">
           <motion.div variants={card} custom={2} initial="hidden" animate="visible">
-            <CommunityCard />
+            <CommunityCard 
+              isActive={data.isActive} 
+              userCount={data.communityUsers}
+              onStatusChange={loadDashboardData} 
+            />
           </motion.div>
           <motion.div variants={card} custom={3} initial="hidden" animate="visible">
-            <DailyQuest />
+            <DailyQuest 
+              hasRegistered={data.hasQuestToday}
+              initialData={data.questResults}
+            />
           </motion.div>
         </div>
 
         {/* Sober Tracker */}
         <motion.div variants={card} custom={4} initial="hidden" animate="visible" className="lg:col-span-12">
           <SoberTracker 
-            days={staticData.fortaleza.current_streak} 
+            days={data.streak} 
             milestone={30} 
-            canCheckIn={true}
+            isUnlocked={data.fortressUnlocked}
+            selectedHabits={data.selectedHabits}
+            lastCheckIn={data.lastCheckIn}
+            onStatusChange={loadDashboardData}
           />
         </motion.div>
 
         {/* Diario */}
         <motion.div variants={card} custom={5} initial="hidden" animate="visible" className="lg:col-span-12">
-          <ComprehensiveJournal />
+          <ComprehensiveJournal onSuccess={loadDashboardData} />
         </motion.div>
 
         {/* IA Fact */}
@@ -138,20 +162,46 @@ const Dashboard = () => {
                             border border-white/10 group-hover:scale-110 transition-transform duration-700">
               <Sparkles size={36} className="text-violet-neon" />
             </div>
-            <div className="flex-1 space-y-4 text-center lg:text-left">
-              <h3 className="text-[11px] font-black text-white/20 uppercase tracking-[0.6em]">Reflexión del Arquetipo</h3>
-              <p className="text-2xl font-light text-white leading-tight max-w-4xl italic">
-                "{staticData.ia_content.daily_fact.text}"
-              </p>
+            <div className="flex-1 space-y-3 text-center lg:text-left">
+              {factLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  <div className="h-3 w-32 bg-white/5 rounded-full" />
+                  <div className="h-6 w-3/4 bg-white/5 rounded-full" />
+                  <div className="h-6 w-1/2 bg-white/5 rounded-full" />
+                </div>
+              ) : dailyFact ? (
+                <>
+                  <div className="flex items-center gap-3 justify-center lg:justify-start">
+                    <span className="text-[9px] font-black text-violet-neon/50 uppercase tracking-[0.6em]">
+                      {dailyFact.category}
+                    </span>
+                    {dailyFact.aiGenerated && (
+                      <span className="text-[8px] bg-violet-neon/10 border border-violet-neon/20 text-violet-neon px-3 py-1 rounded-full font-black uppercase tracking-widest">
+                        IA Hoy
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-[11px] font-black text-white/30 uppercase tracking-[0.6em]">Reflexión del Arquetipo</h3>
+                  <p className="text-2xl font-light text-white leading-tight max-w-4xl italic">
+                    "{dailyFact.text}"
+                  </p>
+                  <p className="text-[10px] text-gray-600 uppercase tracking-widest">
+                    {dailyFact.author} &mdash; {dailyFact.title}
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-500 italic">Conectando con la IA del Santuario...</p>
+              )}
             </div>
-            <Link 
-              to="/fact-detail"
+            <button
+              onClick={() => dailyFact && navigate('/fact-detail', { state: { fact: dailyFact } })}
+              disabled={!dailyFact}
               className="px-12 py-6 bg-white text-black rounded-full font-black text-[10px] uppercase
-                                tracking-[0.5em] hover:bg-violet-neon hover:text-white transition-all shadow-2xl shrink-0 text-center flex items-center gap-3 group"
+                              tracking-[0.5em] hover:bg-violet-neon hover:text-white transition-all shadow-2xl shrink-0 text-center flex items-center gap-3 group disabled:opacity-20"
             >
               Profundizar
               <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-            </Link>
+            </button>
           </div>
         </motion.div>
 

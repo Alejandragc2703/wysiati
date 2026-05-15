@@ -8,10 +8,8 @@ const config = require('../config/env');
 const authGuard = (req, res, next) => {
     const token = req.headers['authorization'];
     
-    // MODO DESARROLLO: Si no hay token, asignamos un usuario por defecto para no bloquear las pruebas
-    if (!token || token === 'mock-jwt-token') {
-        req.user = { id: '00000000-0000-0000-0000-000000000000', nickname: 'Desarrollador' };
-        return next();
+    if (!token) {
+        return res.status(401).json({ error: 'Acceso denegado. Se requiere vinculación (Token).' });
     }
 
     try {
@@ -19,9 +17,8 @@ const authGuard = (req, res, next) => {
         req.user = decoded;
         next();
     } catch (error) {
-        // En desarrollo, incluso si falla el token, dejamos pasar como default
-        req.user = { id: '00000000-0000-0000-0000-000000000000', nickname: 'Desarrollador' };
-        next();
+        console.error("JWT Verification Error:", error.message);
+        return res.status(401).json({ error: 'Sincronización de sesión fallida o expirada.' });
     }
 };
 

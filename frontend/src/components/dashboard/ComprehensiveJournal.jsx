@@ -3,12 +3,15 @@ import {
   Users, Moon, Dumbbell, Coffee, Sparkles, 
   Save, Clock, BookOpen, CheckCircle2, Image as ImageIcon, X
 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import api from '../../services/api';
 
-const ComprehensiveJournal = () => {
+const ComprehensiveJournal = ({ onSuccess }) => {
   const [text, setText] = useState('');
   const [title, setTitle] = useState('');
   const [emotionalLoad, setEmotionalLoad] = useState('violet');
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   const metrics = [
     { id: 'social', icon: Users, label: 'Social', color: 'text-violet-neon', load: 'violet' },
@@ -19,15 +22,31 @@ const ComprehensiveJournal = () => {
 
   const [image, setImage] = useState(null);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!text || !title) return;
-    setSuccess(true);
-    setTimeout(() => {
-      setSuccess(false);
-      setText('');
-      setTitle('');
-      setImage(null);
-    }, 2000);
+    setLoading(true);
+    try {
+      await api.saveJournalEntry({
+        title,
+        content: text,
+        emotional_load: emotionalLoad,
+        mood_score: emotionalLoad === 'cyan' ? 5 : emotionalLoad === 'violet' ? 3 : 1
+      });
+      
+      setSuccess(true);
+      if (onSuccess) onSuccess();
+      setTimeout(() => {
+        setSuccess(false);
+        setText('');
+        setTitle('');
+        setImage(null);
+      }, 2000);
+    } catch (error) {
+      console.error("Error al guardar:", error);
+      alert("Error al sincronizar con el Arquetipo.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -113,13 +132,21 @@ const ComprehensiveJournal = () => {
 
       <button 
         onClick={handleSave}
-        disabled={!text || !title}
+        disabled={!text || !title || loading}
         className={`w-full py-5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-xl group font-black text-xs tracking-widest ${
             success ? 'bg-green-500 text-white' : 'bg-white text-black hover:bg-violet-neon hover:text-white'
         } disabled:opacity-30`}
       >
-        {success ? <CheckCircle2 size={18} /> : <Save size={18} />}
-        <span>{success ? 'REFLEXIÓN GUARDADA' : 'GUARDAR EN EL DIARIO'}</span>
+        {loading ? (
+            <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+        ) : success ? (
+            <CheckCircle2 size={18} />
+        ) : (
+            <Save size={18} />
+        )}
+        <span>
+            {loading ? 'SINCRONIZANDO...' : success ? 'REFLEXIÓN GUARDADA' : 'GUARDAR EN EL DIARIO'}
+        </span>
       </button>
     </div>
   );

@@ -7,15 +7,39 @@ const YearlyCalendar = () => {
   const days = 7;
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = React.useRef(null);
 
   useEffect(() => {
     api.getYearlyStats()
       .then(res => {
         setStats(res);
         setLoading(false);
+        // Auto-scroll al final para ver el día de hoy
+        setTimeout(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+          }
+        }, 100);
       })
       .catch(() => setLoading(false));
   }, []);
+
+  // Fecha base: el lunes de hace (weeks-1) semanas
+  const getStartDate = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.getFullYear(), d.getMonth(), diff - (weeks - 1) * 7);
+  };
+  const startDate = getStartDate();
+
+  // Pre-computamos las fechas para todo el grid para no instanciar Dates en cada render
+  const gridDates = Array.from({ length: weeks }).map((_, wIdx) => 
+    Array.from({ length: days }).map((_, dIdx) => 
+      new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + (wIdx * 7) + dIdx)
+    )
+  );
 
   // Mapa de colores por estado de ánimo (Paleta Exacta de la Captura)
   const moodColors = [
@@ -27,9 +51,16 @@ const YearlyCalendar = () => {
   ];
 
   // Helper para encontrar datos por fecha
-  const getMoodForDate = (dateStr) => {
-    const entry = stats.find(s => new Date(s.date).toDateString() === new Date(dateStr).toDateString());
-    return entry ? entry.mood_score - 1 : -1;
+  const getMoodForDate = (dateObj) => {
+    // Formato YYYY-MM-DD local
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+    
+    // Búsqueda ultra-robusta por si el backend añade timezones o espacios
+    const entry = stats.find(s => JSON.stringify(s).includes(dateStr));
+    return entry ? Number(entry.mood_score) - 1 : -1;
   };
 
   const totalGenial = stats.filter(s => s.mood_score === 5).length;
@@ -64,27 +95,25 @@ const YearlyCalendar = () => {
       <div className="relative z-10 overflow-x-auto pb-10 scrollbar-hide select-none">
         <div className="flex gap-[6px] min-w-max">
           {/* Etiquetas de Días (L, M, X...) */}
-          <div className="flex flex-col gap-[6px] pr-6 pt-[22px] opacity-20">
+          <div className="flex flex-col gap-[6px] pr-6 pt-[54px] opacity-20">
             {['Lun', '', 'Mié', '', 'Vie', '', 'Dom'].map((d, i) => (
               <span key={i} className="text-[10px] h-[16px] flex items-center font-black text-white uppercase tracking-tighter">{d}</span>
             ))}
           </div>
 
-          {/* Semanas */}
-          <div className="flex gap-[6px]">
+          {/* Contenedor del Scroll Anual */}
+          <div ref={scrollRef} className="flex gap-[6px] overflow-x-auto pt-8 pb-4 scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             {Array.from({ length: weeks }).map((_, wIdx) => (
               <div key={wIdx} className="flex flex-col gap-[6px] relative">
                 {/* Meses */}
                 {wIdx % 4 === 0 && (
-                  <span className="absolute -top-8 left-0 text-[9px] font-black text-white/10 uppercase tracking-[0.3em] whitespace-nowrap">
+                  <span className="absolute top-0 left-0 text-[9px] font-black text-white/10 uppercase tracking-[0.3em] whitespace-nowrap">
                     {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][Math.floor(wIdx/4.4)]}
                   </span>
                 )}
                 
                 {Array.from({ length: days }).map((_, dIdx) => {
-                  // Calcular fecha para este cuadrito (empezando desde hace 1 año)
-                  const date = new Date();
-                  date.setDate(date.getDate() - (weeks * 7) + (wIdx * 7) + dIdx);
+                  const date = gridDates[wIdx][dIdx];
                   const moodIdx = getMoodForDate(date);
                   const isToday = date.toDateString() === new Date().toDateString();
                   

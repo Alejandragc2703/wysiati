@@ -1,11 +1,15 @@
-/**
- * Procesador Cognitivo WYSIATI
- * Basado en la teoría de Sistemas de Pensamiento de Daniel Kahneman
- */
+const OpenAI = require('openai');
+const prompts = require('../prompts/kahneman');
 
 class CognitiveProcessor {
     constructor() {
-        // Diccionario de sesgos y sus disparadores (triggers)
+        this.openai = null;
+        if (process.env.AI_API_KEY && process.env.AI_API_KEY !== 'tu_api_key_aqui') {
+            this.openai = new OpenAI({
+                apiKey: process.env.AI_API_KEY
+            });
+        }
+        
         this.biasMarkers = {
             'disponibilidad': ['siempre', 'nunca', 'todo el tiempo', 'últimamente'],
             'confirmacion': ['lo sabía', 'estaba seguro', 'como siempre'],
@@ -15,21 +19,64 @@ class CognitiveProcessor {
     }
 
     /**
-     * Analiza una entrada de texto buscando huellas de pensamiento impulsivo (Sistema 1)
+     * Analiza una entrada de texto usando IA Real (GPT-4o/3.5)
      */
-    analyzeSystem(text) {
+    async analyze(text) {
+        // Si no hay IA configurada, vamos directo al básico
+        if (!this.openai) {
+            return this.analyzeBasic(text);
+        }
+
+        console.log("🧠 Iniciando análisis de IA Real...");
+        
+        try {
+            const prompt = prompts.journalInsight.replace('{{text}}', text);
+            
+            const response = await this.openai.chat.completions.create({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    { role: "system", content: "Eres un experto en psicología cognitiva y en la obra de Daniel Kahneman." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.7,
+                max_tokens: 500,
+            });
+
+            console.log("✅ IA Real respondió con éxito.");
+            const aiInsight = response.choices[0].message.content;
+            const basic = this.analyzeBasic(text);
+            
+            return {
+                ...basic,
+                aiInsight,
+                isRealAI: true
+            };
+        } catch (error) {
+            // CAPTURA CUALQUIER ERROR (429, 500, TIMEOUT) Y EVITA QUE EL PROCESO SE PARE
+            console.warn("⚠️ IA Real falló (Cuota o Red). Usando modo Resiliencia.");
+            console.error("Detalle:", error.message);
+            
+            const basic = this.analyzeBasic(text);
+            return {
+                ...basic,
+                aiInsight: "(Análisis Resiliente): " + this.generateCorrection(basic),
+                isRealAI: false,
+                error: error.message
+            };
+        }
+    }
+
+    analyzeBasic(text) {
         const input = text.toLowerCase();
         let detectedBiases = [];
         let systemType = 'Sistema 1 (Intuitivo)';
 
-        // Buscar disparadores de sesgos
         for (const [bias, triggers] of Object.entries(this.biasMarkers)) {
             if (triggers.some(trigger => input.includes(trigger))) {
                 detectedBiases.push(bias);
             }
         }
 
-        // Si el texto es largo y complejo, el Sistema 2 podría estar activo
         if (input.length > 300 && detectedBiases.length === 0) {
             systemType = 'Sistema 2 (Analítico)';
         }
@@ -38,13 +85,12 @@ class CognitiveProcessor {
             systemType,
             detectedBiases,
             intensity: detectedBiases.length * 0.25,
+            aiInsight: "Análisis básico: " + this.generateCorrection({ detectedBiases }),
+            isRealAI: false,
             timestamp: new Date()
         };
     }
 
-    /**
-     * Genera un consejo para "despertar" al Sistema 2
-     */
     generateCorrection(analysis) {
         if (analysis.detectedBiases.includes('disponibilidad')) {
             return "Estás decidiendo basándote en lo más reciente. Haz una lista de 3 excepciones pasadas para activar tu Sistema 2.";
