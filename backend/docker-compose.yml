@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # 🗄️ BASE DE DATOS (POSTGRESQL)
+  db:
+    image: postgres:15
+    container_name: wysiati-db
+    restart: always
+    environment:
+      POSTGRES_USER: blueb
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: wysiati
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # 🧠 CEREBRO (BACKEND)
+  backend:
+    build: .
+    container_name: wysiati-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_USER=blueb
+      - DB_PASSWORD=mypassword
+      - DB_HOST=db
+      - DB_NAME=wysiati
+      - DB_PORT=5432
+      - JWT_SECRET=santuary_secret_key_2026
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+    depends_on:
+      - db
+
+  # 🎨 SANTUARIO (FRONTEND)
+  frontend:
+    build: ../frontend
+    container_name: wysiati-frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
